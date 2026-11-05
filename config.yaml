@@ -1,0 +1,58 @@
+# Frames come from ONE video, in natural filename order (frame2 before frame10).
+# Maximum image motion allowed for removal. Positive fraction, default 0.10.
+# Raising this value removes more. Lowering it preserves more viewpoints.
+# The median vertical and peak sideways scores must be below this value.
+# The two combined peak scores must be below twice this value.
+maximum_motion: 0.10
+
+# true keeps all features in the near-horizon band, including sky.
+# false additionally masks likely blue sky and bright clouds in that band.
+include_sky: true
+
+# true repeats last-retained comparisons until a pass flags zero frames.
+# false performs one pass. Uncertain frames are always retained.
+repeat_until_stable: true
+
+features:
+  orb_count: 1400          # Positive integer; maximum initial features per region
+  orb_fast_threshold: 10   # Positive integer; lower detects more weak corners
+  sift_fallback: true     # Retry failed ORB alignment using denser SIFT features
+  sift_count: 3000         # Positive integer; maximum fallback features
+  sift_contrast: 0.012     # (0,1]; lower finds weaker features and costs more work
+  sift_scale: 1.5          # Positive multiplier; 1.5 extracts SIFT at 960x720
+                          # Coordinates are converted back to the 640x480 basis
+
+quality:
+  match_ratio: 0.75             # (0,1]; lower requires more distinctive descriptor matches
+  min_matches: 18               # Positive integer; distinct matches required to fit alignment
+  min_inliers: 16               # Positive integer; matches supporting fitted alignment
+  min_inlier_ratio: 0.60        # (0,1]; fraction of matches that must support alignment
+  min_spread_pixels: [105, 35]  # Positive [horizontal, vertical] coverage on 640x480 basis
+  ransac_pixels: 2.5            # Positive alignment error tolerance in working pixels
+
+regions:
+  # All coordinates use a 640x480 working image.
+  # These defaults reproduce our Nienaber trial. Adjust for other camera mountings.
+  # Road polygon must avoid the dashboard/hood. At least three [x,y] vertices.
+  road_polygon: [[205, 235], [435, 235], [545, 303], [95, 303]]
+  # [left, top, right, bottom], inside x=0..640, y=0..480
+  upper_rectangle: [60, 175, 580, 235]
+  # Sample grid locations used to measure displacement from the fitted transform.
+  grid_x: [220, 320, 420]
+  road_grid_y: [240, 267, 295]
+  upper_grid_y: [182, 204, 226]
+  vehicle_padding: 5  # Nonnegative pixels added around detected vehicles before masking
+
+vehicles:
+  enabled: true       # Mask features inside detected vehicles in BOTH images
+  # Local COCO checkpoint. Relative paths start beside this YAML file.
+  weights: models/context.pt
+  confidence: 0.20    # (0,1]; lower masks more potential vehicles
+  device: auto        # auto chooses CUDA when available; also cpu or cuda:0
+  classes: [2, 3, 5, 7]  # COCO car, motorcycle, bus and truck; parked vehicles also masked
+
+runtime:
+  cpu_threads: 2           # Positive integer; OpenCV worker threads
+  feature_cache_frames: 12 # Positive integer; bounded recent feature cache
+  periodic_interval: 0    # 0 disables periodic retention, as in the approved trial
+                          # A positive value keeps occasional frames based on input index gap
