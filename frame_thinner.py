@@ -176,7 +176,7 @@ class FrameComparator:
         return {**row,'status':'remove_candidate','reason':'All movement checks indicate a redundant frame.'}
 
 
-def run(args):
+def run(args, frame_paths=None, comparator_factory=FrameComparator):
     source, output = args.input.resolve(), args.output.resolve()
     if not source.is_dir():
         raise ValueError('Input must be a folder containing frames from one video.')
@@ -186,6 +186,12 @@ def run(args):
         raise FileExistsError(f'Choose a new output directory: {output}')
     paths = sorted((p for p in source.iterdir() if p.is_file() and not p.is_symlink()
                     and p.suffix.lower() in EXTENSIONS), key=lambda p:(natural_key(p),p.name))
+    if frame_paths is not None:
+        allowed=set(paths)
+        requested=list(frame_paths)
+        if not requested or len(set(requested)) != len(requested) or not set(requested).issubset(allowed):
+            raise ValueError('Selected frames must be unique files directly inside the input folder.')
+        paths=sorted(requested,key=lambda p:(natural_key(p),p.name))
     if not paths:
         raise ValueError('No supported images directly inside input.')
     labels = None
@@ -203,7 +209,7 @@ def run(args):
     config_path=args.config.resolve()
     config=load_config(config_path)
     states={p:file_state(p) for p in paths+(labels or [])}
-    comparator=FrameComparator(paths,config,config_path)
+    comparator=comparator_factory(paths,config,config_path)
     output.mkdir(parents=True)
     started=perf_counter()
     survivors=list(range(len(paths)))
@@ -257,6 +263,10 @@ def run(args):
                 copy2(labels[index],destination)
     (output/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print(f'Finished: {len(survivors)}/{len(paths)} retained. Report: {output/"report.json"}',flush=True)
+    comparator.evidence.cache_clear()
+    comparator.describe.cache_clear()
+    comparator.boxes.cache_clear()
+    return report
 
 
 def main():
